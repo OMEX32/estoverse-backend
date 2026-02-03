@@ -7,8 +7,11 @@ dotenv.config();
 const app = express();
 
 const allowedOrigins = [
-  process.env.CORS_ORIGIN,       // prod (vercel)
-  "http://localhost:3000"        // dev
+  process.env.CORS_ORIGIN,                    // Production (from env variable)
+  "http://localhost:3000",                     // Local React dev
+  "https://estoverse-frontend.vercel.app",     // Your Vercel frontend (no trailing slash!)
+  "https://estoverse-react.vercel.app",        // Alternative if you used this name
+  "https://estoverse.vercel.app"               // In case of custom domain
 ].filter(Boolean);
 
 app.use(cors({
