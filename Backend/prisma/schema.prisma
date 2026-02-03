@@ -4,9 +4,12 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
+// ============================================
+// USER MODEL
+// ============================================
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -15,11 +18,27 @@ model User {
   firstName String
   lastName  String
   role      UserRole @default(PLAYER)
+  
+  // Optional profile fields (NEW)
+  game      String?  // Primary game (valorant, lol, etc.)
+  region    String?  // Geographic region (na, eu, asia)
+  
+  // Consent & Legal tracking (NEW)
+  termsAcceptedAt   DateTime  @default(now())
+  ageVerifiedAt     DateTime  @default(now())
+  marketingConsent  Boolean   @default(false)
+  
+  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  ownedTeams  Team[]       @relation("TeamOwner")
+  
+  // Relations
+  ownedTeams  Team[]         @relation("TeamOwner")
   teamMembers TeamMember[]
+  invitations Invitation[]   @relation("InviteCreator")  // NEW - for invite system
+  
+  @@index([email])     // NEW - faster lookups
+  @@index([username])  // NEW - faster lookups
 }
 
 enum UserRole {
@@ -29,28 +48,149 @@ enum UserRole {
   MANAGER
 }
 
+// ============================================
+// TEAM MODEL
+// ============================================
 model Team {
   id         String   @id @default(uuid())
   name       String
   game       String?
   maxPlayers Int      @default(10)
+  
+  // Additional fields (NEW)
+  region          String?        // Team's region
+  isActive        Boolean        @default(true)  // Soft delete
+  subscriptionStatus String      @default("trial")  // trial, active, expired
+  
+  // Timestamps
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-
-  ownerId String
-  owner   User         @relation("TeamOwner", fields: [ownerId], references: [id])
-  members TeamMember[]
+  
+  // Relations
+  ownerId     String
+  owner       User           @relation("TeamOwner", fields: [ownerId], references: [id])
+  members     TeamMember[]
+  invitations Invitation[]   // NEW - for invite system
+  events      Event[]        // NEW - for calendar/scheduling
+  
+  @@index([ownerId])  // NEW - faster queries for "teams I own"
 }
 
+// ============================================
+// TEAM MEMBER MODEL
+// ============================================
 model TeamMember {
-  id       String   @id @default(uuid())
+  id       String         @id @default(uuid())
   userId   String
   teamId   String
-  role     String
-  joinedAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
+  role     MemberRole     // CHANGED - now an enum instead of String
+  position String?        // NEW - e.g., "Top", "Jungle", "ADC"
+  status   MemberStatus   @default(ACTIVE)  // NEW - active/inactive
+  joinedAt DateTime       @default(now())
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
+  
   @@unique([userId, teamId])
+  @@index([teamId])   // NEW - faster queries for "team roster"
+  @@index([userId])   // NEW - faster queries for "my teams"
+}
+
+// NEW ENUM - Better than storing strings
+enum MemberRole {
+  PLAYER
+  SUBSTITUTE
+  ANALYST
+  COACH_ASSISTANT
+}
+
+// NEW ENUM
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  PENDING  // For when they're invited but haven't accepted yet
+}
+
+// ============================================
+// INVITATION MODEL (NEW - for invite system)
+// ============================================
+model Invitation {
+  id          String    @id @default(uuid())
+  code        String    @unique @default(uuid())  // The unique invite code
+  teamId      String
+  role        MemberRole
+  position    String?   // Optional position like "ADC"
+  maxUses     Int       @default(1)  // How many times it can be used
+  usedCount   Int       @default(0)
+  expiresAt   DateTime? // Optional expiration
+  createdAt   DateTime  @default(now())
+  
+  // Relations
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User     @relation("InviteCreator", fields: [createdById], references: [id])
+  uses        InvitationUse[]
+  
+  @@index([code])    // Fast lookup by invite code
+  @@index([teamId])
+}
+
+model InvitationUse {
+  id           String   @id @default(uuid())
+  invitationId String
+  userId       String
+  usedAt       DateTime @default(now())
+  
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  
+  @@index([invitationId])
+}
+
+// ============================================
+// EVENT MODEL (NEW - for calendar/scheduling)
+// ============================================
+model Event {
+  id          String    @id @default(uuid())
+  teamId      String
+  title       String
+  type        EventType
+  startTime   DateTime
+  endTime     DateTime?
+  description String?
+  createdAt   DateTime  @default(now())
+  
+  // Relations
+  team         Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  availability EventAvailability[]
+  
+  @@index([teamId])
+  @@index([startTime])  // Fast queries for "upcoming events"
+}
+
+enum EventType {
+  TOURNAMENT
+  SCRIM
+  PRACTICE
+  MEETING
+}
+
+// Player availability for events
+model EventAvailability {
+  id        String             @id @default(uuid())
+  eventId   String
+  userId    String
+  status    AvailabilityStatus
+  createdAt DateTime           @default(now())
+  
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  @@unique([eventId, userId])
+  @@index([eventId])
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  UNAVAILABLE
+  TENTATIVE
 }

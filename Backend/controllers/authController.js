@@ -1,12 +1,16 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const prisma = require('../utils/prisma');
-
-// REGISTER - Create a new user
 const register = async (req, res) => {
-  
   try {
-    const { email, password, username, firstName, lastName, role } = req.body;
+    const { 
+      email, 
+      password, 
+      username, 
+      firstName, 
+      lastName, 
+      role,
+      game,
+      region,
+      marketingConsent  // Renamed from "communications"
+    } = req.body;
 
     // 1. Validate input
     if (!email || !password || !username || !firstName || !lastName) {
@@ -43,7 +47,12 @@ const register = async (req, res) => {
         username,
         firstName,
         lastName,
-        role: (role || "PLAYER").toUpperCase()
+        role: role || 'PLAYER',
+        game: game || null,
+        region: region || null,
+        marketingConsent: marketingConsent || false,
+        termsAcceptedAt: new Date(),  // Log when they accepted
+        ageVerifiedAt: new Date()      // Log when they verified
       }
     });
 
@@ -63,7 +72,9 @@ const register = async (req, res) => {
         username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role
+        role: user.role,
+        game: user.game,
+        region: user.region
       },
       token
     });
@@ -73,91 +84,3 @@ const register = async (req, res) => {
     res.status(500).json({ error: 'Registration failed' });
   }
 };
-
-// LOGIN - Authenticate existing user
-const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // 1. Validate input
-    if (!email || !password) {
-      return res.status(400).json({ 
-        error: 'Please provide email and password' 
-      });
-    }
-
-    // 2. Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email: email }
-    });
-
-    if (!user) {
-      return res.status(401).json({ 
-        error: 'Invalid credentials' 
-      });
-    }
-
-    // 3. Check password
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return res.status(401).json({ 
-        error: 'Invalid credentials' 
-      });
-    }
-
-    // 4. Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // 5. Send response
-    res.json({
-      message: 'Login successful',
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role
-      },
-      token
-    });
-
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Login failed' });
-  }
-};
-
-// GET ME - Get current logged-in user's info
-const getMe = async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.userId },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        createdAt: true
-      }
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json({ user });
-
-  } catch (error) {
-    console.error('Get me error:', error);
-    res.status(500).json({ error: 'Failed to get user info' });
-  }
-};
-
-module.exports = { register, login, getMe };

@@ -11,6 +11,4 @@ router.post('/login', login);
 // Protected route (authentication required)
 router.get('/me', authenticate, getMe);
 
-
-
 module.exports = router;
