@@ -7,16 +7,15 @@ dotenv.config();
 const app = express();
 
 const allowedOrigins = [
-  process.env.CORS_ORIGIN,                    // Production (from env variable)
-  "http://localhost:3000",                     // Local React dev
-  "https://estoverse-frontend.vercel.app",     // Your Vercel frontend (no trailing slash!)
-  "https://estoverse-react.vercel.app",        // Alternative if you used this name
-  "https://estoverse.vercel.app"               // In case of custom domain
+  process.env.CORS_ORIGIN,
+  "http://localhost:3000",
+  "https://estoverse-frontend.vercel.app",
+  "https://estoverse-react.vercel.app",
+  "https://estoverse.vercel.app"
 ].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, cb) {
-    // allow requests like Postman/curl with no origin
     if (!origin) return cb(null, true);
     if (allowedOrigins.includes(origin)) return cb(null, true);
     return cb(new Error("Not allowed by CORS"));
@@ -24,15 +23,28 @@ app.use(cors({
   credentials: true,
 }));
 
-
 app.use(express.json());
 
-const authRoutes = require('./routes/auth');
-app.use('/api/auth', authRoutes);
-
+// Try to load auth routes with error handling
+try {
+  console.log('📂 Loading auth routes...');
+  const authRoutes = require('./routes/auth');
+  app.use('/api/auth', authRoutes);
+  console.log('✅ Auth routes loaded successfully!');
+} catch (error) {
+  console.error('❌ Failed to load auth routes:', error.message);
+  console.error('Stack:', error.stack);
+}
 
 app.get('/health', (req, res) => {
   res.json({ status: 'Server is running!' });
+});
+
+// Log all registered routes
+app._router.stack.forEach(function(r){
+  if (r.route && r.route.path){
+    console.log('📍 Route:', r.route.path);
+  }
 });
 
 app.use((err, req, res, next) => {
@@ -46,4 +58,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log('Allowed origins:', allowedOrigins);
 });
