@@ -36,15 +36,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'Server is running!' });
 });
 
-
-
-// Log all registered routes
-app._router.stack.forEach(function(r){
-  if (r.route && r.route.path){
-    console.log('📍 Route:', r.route.path);
-  }
-});
-
 app.use((err, req, res, next) => {
   console.error("🔥 Server error:", err);
   res.status(500).json({
@@ -57,4 +48,13 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log('Allowed origins:', allowedOrigins);
-}); 
+  
+  // Log all registered routes - MOVED HERE
+  if (app._router) {
+    app._router.stack.forEach(function(r){
+      if (r.route && r.route.path){
+        console.log('📍 Route:', r.route.path);
+      }
+    });
+  }
+});
