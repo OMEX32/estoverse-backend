@@ -36,6 +36,8 @@ app.get('/health', (req, res) => {
   res.json({ status: 'Server is running!' });
 });
 
+
+
 // Log all registered routes
 app._router.stack.forEach(function(r){
   if (r.route && r.route.path){
